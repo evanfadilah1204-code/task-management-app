@@ -91,20 +91,45 @@ const mongooseOptions = {
   authSource: 'admin',
 };
 
-console.log("⏳ Mencoba tersambung ke MongoDB Atlas via jalur Direct...");
+let dbConnectionPromise: Promise<typeof mongoose> | null = null;
+export const connectToDatabase = async () => {
+  if (mongoose.connection.readyState === 1) return mongoose;
+  if (!mongoUri) throw new Error("MONGO_URI tidak ditemukan di environment variables!");
+  if (!dbConnectionPromise) {
+    dbConnectionPromise = mongoose.connect(mongoUri, mongooseOptions);
+  }
+  return dbConnectionPromise;
+};
 
-mongoose.connect(mongoUri, mongooseOptions)
-  .then(() => {
-    console.log("✅ Database MongoDB Atlas terhubung, Mantap!");
-    initScheduler(); // Aktifkan Penjadwal Cron Notifikasi Telegram
-    app.listen(PORT, () => {
-      console.log(`🚀 Server jalan di: http://localhost:${PORT}`);
-      console.log(`   Health Check:   http://localhost:${PORT}/health`);
-      console.log(`   Ping Test:      http://localhost:${PORT}/ping`);
+// Middleware memastikan database terhubung sebelum memproses API (Krusial untuk Serverless Vercel)
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  // Lewati pengecekan DB untuk static/ping jika diinginkan
+  if (req.path === '/ping') return next();
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err: any) {
+    console.error("❌ GAGAL KONEK DATABASE:", err.message);
+    res.status(500).json({ error: "Database connection failed", message: err.message });
+  }
+});
+
+// Jalankan standalone server jika bukan di environment Vercel
+if (process.env.VERCEL !== '1') {
+  connectToDatabase()
+    .then(() => {
+      console.log("✅ Database MongoDB Atlas terhubung, Mantap!");
+      initScheduler(); // Aktifkan Penjadwal Cron Notifikasi Telegram
+      app.listen(PORT, () => {
+        console.log(`🚀 Server jalan di: http://localhost:${PORT}`);
+        console.log(`   Health Check:   http://localhost:${PORT}/health`);
+        console.log(`   Ping Test:      http://localhost:${PORT}/ping`);
+      });
+    })
+    .catch((error: any) => {
+      console.error("\n❌ GAGAL KONEK DATABASE:");
+      console.error(error.message);
     });
-  })
-  .catch((error: any) => {
-    console.error("\n❌ GAGAL KONEK DATABASE:");
-    console.error(error.message);
-    process.exit(1);
-  });
+}
+
+export default app;
