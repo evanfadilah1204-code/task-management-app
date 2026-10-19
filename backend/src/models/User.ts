@@ -15,6 +15,18 @@ const userSchema = new Schema({
   password: { 
     type: String, 
     required: true 
+  },
+  telegramChatId: {
+    type: String,
+    default: ''
+  },
+  telegramNotificationsEnabled: {
+    type: Boolean,
+    default: true
+  },
+  telegramMorningDigestTime: {
+    type: String,
+    default: '07:00'
   }
 }, { 
   timestamps: true // Otomatis membuat kolom createdAt dan updatedAt

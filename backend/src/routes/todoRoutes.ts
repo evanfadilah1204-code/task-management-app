@@ -88,15 +88,24 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
   }
 });
 
-// 4. PUT: Update Status Selesai
+// 4. PUT: Update Status / Edit Data Tugas
 router.put('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { isCompleted } = req.body;
-    const updated = await Todo.findByIdAndUpdate(id, { isCompleted }, { new: true });
+    const updateFields: any = {};
+
+    if (req.body.isCompleted !== undefined) updateFields.isCompleted = req.body.isCompleted;
+    if (req.body.taskName || req.body.title) {
+      updateFields.taskName = req.body.taskName || req.body.title;
+      updateFields.title = req.body.taskName || req.body.title;
+    }
+    if (req.body.subject) updateFields.subject = req.body.subject;
+    if (req.body.deadline) updateFields.deadline = req.body.deadline;
+
+    const updated = await Todo.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
     res.status(200).json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: 'Gagal update status tugas' });
+    res.status(500).json({ message: 'Gagal update status/data tugas' });
   }
 });
 

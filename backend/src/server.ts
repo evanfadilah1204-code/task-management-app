@@ -7,16 +7,39 @@ import cors from 'cors'; // 1. Impor package CORS
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
-import todoRoutes from './routes/todoRoutes'; // <-- FIX: Nama variabel diganti jadi todoRoutes biar sinkron
+import todoRoutes from './routes/todoRoutes';
+import habitRoutes from './routes/habitRoutes';
+import timeBlockRoutes from './routes/timeBlockRoutes';
+import expenseRoutes from './routes/expenseRoutes';
+import aiRoutes from './routes/aiRoutes';
+import telegramRoutes from './routes/telegramRoutes';
 import indexRoutes from './routes/index';
+import { initScheduler } from './services/schedulerService';
 
 dotenv.config();
 
 const app = express();
 
-// 2. Aktifkan CORS untuk mengizinkan akses dari frontend Vite
+// 2. Aktifkan CORS untuk mengizinkan akses dari frontend Vite (local & Vercel production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Izinkan request tanpa origin (seperti mobile apps, curl, healthcheck)
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      /\.vercel\.app$/.test(origin) ||
+      process.env.NODE_ENV !== 'production'
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 
@@ -41,7 +64,12 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/todos', todoRoutes); // <-- FIX: Jalurnya diganti jadi /api/todos sesuai request frontend!
+app.use('/api/todos', todoRoutes);
+app.use('/api/habits', habitRoutes);
+app.use('/api/timeblocks', timeBlockRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/telegram', telegramRoutes);
 app.use('/', indexRoutes);
 
 // Global Error Handler
@@ -68,6 +96,7 @@ console.log("⏳ Mencoba tersambung ke MongoDB Atlas via jalur Direct...");
 mongoose.connect(mongoUri, mongooseOptions)
   .then(() => {
     console.log("✅ Database MongoDB Atlas terhubung, Mantap!");
+    initScheduler(); // Aktifkan Penjadwal Cron Notifikasi Telegram
     app.listen(PORT, () => {
       console.log(`🚀 Server jalan di: http://localhost:${PORT}`);
       console.log(`   Health Check:   http://localhost:${PORT}/health`);
