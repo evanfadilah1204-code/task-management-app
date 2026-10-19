@@ -1,18 +1,8 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.connectToDatabase = void 0;
 const dns_1 = __importDefault(require("dns"));
 // Paksa Node.js cari IPv4 dulu agar menghindari isu DNS tertunda
 dns_1.default.setDefaultResultOrder('ipv4first');
@@ -31,24 +21,9 @@ const index_1 = __importDefault(require("./routes/index"));
 const schedulerService_1 = require("./services/schedulerService");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-// 2. Aktifkan CORS untuk mengizinkan akses dari frontend Vite (local & Vercel production)
-const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL
-].filter(Boolean);
+// 2. Aktifkan CORS untuk mengizinkan akses dari frontend Vite
 app.use((0, cors_1.default)({
-    origin: (origin, callback) => {
-        // Izinkan request tanpa origin (seperti mobile apps, curl, healthcheck)
-        if (!origin)
-            return callback(null, true);
-        if (allowedOrigins.includes(origin) ||
-            /\.vercel\.app$/.test(origin) ||
-            process.env.NODE_ENV !== 'production') {
-            return callback(null, true);
-        }
-        return callback(null, true);
-    },
+    origin: 'http://localhost:5173',
     credentials: true
 }));
 app.use(express_1.default.json());
@@ -92,47 +67,18 @@ const mongooseOptions = {
     connectTimeoutMS: 15000,
     authSource: 'admin',
 };
-let dbConnectionPromise = null;
-const connectToDatabase = () => __awaiter(void 0, void 0, void 0, function* () {
-    if (mongoose_1.default.connection.readyState === 1)
-        return mongoose_1.default;
-    if (!mongoUri)
-        throw new Error("MONGO_URI tidak ditemukan di environment variables!");
-    if (!dbConnectionPromise) {
-        dbConnectionPromise = mongoose_1.default.connect(mongoUri, mongooseOptions);
-    }
-    return dbConnectionPromise;
-});
-exports.connectToDatabase = connectToDatabase;
-// Middleware memastikan database terhubung sebelum memproses API (Krusial untuk Serverless Vercel)
-app.use((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    // Lewati pengecekan DB untuk static/ping jika diinginkan
-    if (req.path === '/ping')
-        return next();
-    try {
-        yield (0, exports.connectToDatabase)();
-        next();
-    }
-    catch (err) {
-        console.error("❌ GAGAL KONEK DATABASE:", err.message);
-        res.status(500).json({ error: "Database connection failed", message: err.message });
-    }
-}));
-// Jalankan standalone server jika bukan di environment Vercel
-if (process.env.VERCEL !== '1') {
-    (0, exports.connectToDatabase)()
-        .then(() => {
-        console.log("✅ Database MongoDB Atlas terhubung, Mantap!");
-        (0, schedulerService_1.initScheduler)(); // Aktifkan Penjadwal Cron Notifikasi Telegram
-        app.listen(PORT, () => {
-            console.log(`🚀 Server jalan di: http://localhost:${PORT}`);
-            console.log(`   Health Check:   http://localhost:${PORT}/health`);
-            console.log(`   Ping Test:      http://localhost:${PORT}/ping`);
-        });
-    })
-        .catch((error) => {
-        console.error("\n❌ GAGAL KONEK DATABASE:");
-        console.error(error.message);
+mongoose_1.default.connect(mongoUri, mongooseOptions)
+    .then(() => {
+    console.log("✅ Database MongoDB Atlas terhubung, Mantap!");
+    (0, schedulerService_1.initScheduler)(); // Aktifkan Penjadwal Cron Notifikasi Telegram
+    app.listen(PORT, () => {
+        console.log(`🚀 Server jalan di: http://localhost:${PORT}`);
+        console.log(`   Health Check:   http://localhost:${PORT}/health`);
+        console.log(`   Ping Test:      http://localhost:${PORT}/ping`);
     });
-}
-exports.default = app;
+})
+    .catch((error) => {
+    console.error("\n❌ GAGAL KONEK DATABASE:");
+    console.error(error.message);
+    process.exit(1);
+});
